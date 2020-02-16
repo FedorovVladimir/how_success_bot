@@ -1,29 +1,26 @@
 import telebot
 import datetime
+import requests
+import json
 
-from Subject import Subject
-from Task import Task
-
+SELECT_OUT_SUBJECT = False
+SELECT_IN_SUBJECT = False
 SUBJECT_NOT_FOUND = -1
 DEFAULT_TEXT = 'Такого пока не умею'
-bot = telebot.TeleBot('1073761581:AAF_Bf42Qit5PkRbrQbWf7yfprVogQMeemw')
+bot = telebot.TeleBot('975464059:AAH5gERiAoJ7IvRaIOXyJvHPGX61ZDPwE6M')
 
-subjects = [
-    Subject('Программирование параллельных процессов', [
-        Task("Потоки и отдельные приложения", False),
-        Task("Читатели-писатели потребитьели-производители", False),
-        Task("Сетевое взаимодействие", False),
-        Task("Сервер системы", False),
-        Task("MPI", False)
-    ]),
-    Subject('Методы вычислений', [
-        Task("Метод наискорейшего спуска", False)
-    ])
+biletikBaseUrl = 'https://biletik.ext-system.com/client-api'
+subject_id_out = -1
+subject_id_in = -1
+
+mainMenuItems = [
+    'Выбрать пункт отправления',
+    'Выбрать пункт прибытия',
+    'Посмотреть рейсы',
 ]
-
-subjectKeyboard = telebot.types.ReplyKeyboardMarkup()
-for subject in subjects:
-    subjectKeyboard.add(subject.name)
+mainMenuKeyboard = telebot.types.ReplyKeyboardMarkup()
+for mainMenuItem in mainMenuItems:
+    mainMenuKeyboard.add(mainMenuItem)
 
 
 def info(user, text):
@@ -33,43 +30,87 @@ def info(user, text):
 @bot.message_handler(commands=['start'])
 def start_message(message):
     info(message.from_user.username, "/start")
-    bot.send_message(message.chat.id, 'Привет, это 3CRASBS!\nВыберите предмет для просмотра долгов.', reply_markup=subjectKeyboard)
+    bot.send_message(message.chat.id,
+                     'Привет, это biletik_online_bot!\nПоехали!)',
+                     reply_markup=mainMenuKeyboard)
 
 
 @bot.message_handler(content_types=['text'])
 def send_text(message):
+    global SELECT_OUT_SUBJECT
+    global SELECT_IN_SUBJECT
     info(message.from_user.username, message.text)
 
     n = SUBJECT_NOT_FOUND
-    for i in range(len(subjects)):
-        if message.text == subjects[i].name:
+    for i in range(len(mainMenuItems)):
+        if message.text == mainMenuItems[i]:
             n = i
             break
 
-    text = DEFAULT_TEXT
-    keys = telebot.types.InlineKeyboardMarkup()
     if n != SUBJECT_NOT_FOUND:
-        noDoneTasks = list(filter(lambda t: t.done == False, subjects[n].tasks))
-        text = 'Ещё ' + str(len(noDoneTasks)) + '!'
-        if len(noDoneTasks) > 0:
-            text += '\nНажмите на название работы которую вы сдали для отметки.'
-        for i in range(len(noDoneTasks)):
+        if n == 0:
+            SELECT_OUT_SUBJECT = True
+            bot.send_message(message.chat.id, "Введите часть или полное название пункта отправления.")
+            return
+        elif n == 1:
+            SELECT_IN_SUBJECT = True
+            bot.send_message(message.chat.id, "Введите часть или полное название пункта прибытия.")
+            return
+        elif n == 2:
+            subjects_json = requests.get(
+                biletikBaseUrl +
+                '/v2/trips?date=16.02.2020&departureType=Point&destinationType=Point&idDeparture='
+                + str(subject_id_out) +
+                '&idDestination=' + str(subject_id_in))
+            trips = json.loads(subjects_json.text)['data']
+            keys = telebot.types.InlineKeyboardMarkup()
+            for trip in trips:
+                button = telebot.types.InlineKeyboardButton(
+                    text=trip['route']['name'] + '\nСвободных мест: ' + str(trip['places']['free']),
+                    callback_data="test")
+                keys.add(button)
+            bot.send_message(message.chat.id, "Рейсы на сегодня.", reply_markup=keys)
+            return
+
+    if SELECT_OUT_SUBJECT is True:
+        SELECT_OUT_SUBJECT = False
+        term = message.text
+        subjects_json = requests.get(biletikBaseUrl + "/subjects/departure?term=" + term)
+        subjects = json.loads(subjects_json.text)['data']
+        keys = telebot.types.InlineKeyboardMarkup()
+        for subject in subjects:
             button = telebot.types.InlineKeyboardButton(
-                text=subjects[n].tasks[i].name,
-                callback_data="doneTask " + str(n) + " " + str(i))
+                text=subject['name'],
+                callback_data="departure " + str(subject['id']))
             keys.add(button)
-    bot.send_message(message.chat.id, text, reply_markup=keys)
+        bot.send_message(message.chat.id, 'Выберите пункт отправления', reply_markup=keys)
+
+    if SELECT_IN_SUBJECT is True:
+        SELECT_IN_SUBJECT = False
+        term = message.text
+        subjects_json = requests.get(biletikBaseUrl + "/subjects/destination?term=" + term)
+        subjects = json.loads(subjects_json.text)['data']
+        keys = telebot.types.InlineKeyboardMarkup()
+        for subject in subjects:
+            button = telebot.types.InlineKeyboardButton(
+                text=subject['name'],
+                callback_data="destination " + str(subject['id']))
+            keys.add(button)
+        bot.send_message(message.chat.id, 'Выберите пункт отправления', reply_markup=keys)
 
 
 @bot.callback_query_handler(func=lambda c: True)
 def call_back(c):
+    global subject_id_out
+    global subject_id_in
     commands = c.data.split()
     info(c.from_user.username, commands)
-    if commands[0] == "doneTask":
-        subject = subjects[int(commands[1])]
-        task = subject.tasks[int(commands[2])]
-        task.done = True
-        bot.send_message(c.message.chat.id, subject.name + "\n" + task.name + "\nСделана!")
+    if commands[0] == "departure":
+        subject_id_out = int(commands[1])
+        bot.send_message(c.message.chat.id, 'Пункт отправления выбран')
+    elif commands[0] == "destination":
+        subject_id_in = int(commands[1])
+        bot.send_message(c.message.chat.id, 'Пункт прибытия выбран')
 
 
 bot.polling()
