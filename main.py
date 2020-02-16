@@ -33,7 +33,7 @@ def info(user, text):
 @bot.message_handler(commands=['start'])
 def start_message(message):
     info(message.from_user.username, "/start")
-    bot.send_message(message.chat.id, 'Привет, это 3CRASBS!', reply_markup=subjectKeyboard)
+    bot.send_message(message.chat.id, 'Привет, это 3CRASBS!\nВыберите предмет для просмотра долгов.', reply_markup=subjectKeyboard)
 
 
 @bot.message_handler(content_types=['text'])
@@ -50,7 +50,9 @@ def send_text(message):
     keys = telebot.types.InlineKeyboardMarkup()
     if n != SUBJECT_NOT_FOUND:
         noDoneTasks = list(filter(lambda t: t.done == False, subjects[n].tasks))
-        text = 'Ещё ' + str(len(noDoneTasks)) + '!\nНажмите на название работы которую вы сдали для отметки.'
+        text = 'Ещё ' + str(len(noDoneTasks)) + '!'
+        if len(noDoneTasks) > 0:
+            text += '\nНажмите на название работы которую вы сдали для отметки.'
         for i in range(len(noDoneTasks)):
             button = telebot.types.InlineKeyboardButton(
                 text=subjects[n].tasks[i].name,
