@@ -50,7 +50,7 @@ def send_text(message):
     keys = telebot.types.InlineKeyboardMarkup()
     if n != SUBJECT_NOT_FOUND:
         noDoneTasks = list(filter(lambda t: t.done == False, subjects[n].tasks))
-        text = 'Ещё ' + str(len(noDoneTasks)) + '!\n'
+        text = 'Ещё ' + str(len(noDoneTasks)) + '!\nНажмите на название работы которую вы сдали для отметки.'
         for i in range(len(noDoneTasks)):
             button = telebot.types.InlineKeyboardButton(
                 text=subjects[n].tasks[i].name,
