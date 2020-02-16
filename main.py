@@ -11,14 +11,14 @@ bot = telebot.TeleBot('1073761581:AAF_Bf42Qit5PkRbrQbWf7yfprVogQMeemw')
 
 subjects = [
     Subject('Программирование параллельных процессов', [
-        Task("Метод наискорейшего спуска", False)
-    ]),
-    Subject('Методы вычислений', [
         Task("Потоки и отдельные приложения", False),
-        Task("Читатели-писатели потребитьели производители", False),
+        Task("Читатели-писатели потребитьели-производители", False),
         Task("Сетевое взаимодействие", False),
         Task("Сервер системы", False),
         Task("MPI", False)
+    ]),
+    Subject('Методы вычислений', [
+        Task("Метод наискорейшего спуска", False)
     ])
 ]
 
@@ -49,11 +49,25 @@ def send_text(message):
             break
 
     text = DEFAULT_TEXT
+    keys = telebot.types.InlineKeyboardMarkup()
     if n != SUBJECT_NOT_FOUND:
-        text = 'Ещё ' + str(len(subjects[n].tasks)) + ' !\n'
-        for task in subjects[n].tasks:
-            text += task.name + "\n"
-    bot.send_message(message.chat.id, text)
+        text = 'Ещё ' + str(len(subjects[n].tasks)) + '!\n'
+        for i in range(len(subjects[n].tasks)):
+            button = telebot.types.InlineKeyboardButton(
+                text=subjects[n].tasks[i].name,
+                callback_data="doneTask " + str(n) + " " + str(i))
+            keys.add(button)
+    bot.send_message(message.chat.id, text, reply_markup=keys)
+
+
+@bot.callback_query_handler(func=lambda c:True)
+def call_back(c):
+    commands = c.data.split()
+    if commands[0] == "doneTask":
+        subject = subjects[int(commands[1])]
+        task = subject.tasks[int(commands[2])]
+        task.dane = True
+        bot.send_message(c.message.chat.id, subject.name + "\n" + task.name + "\nСделана!")
 
 
 bot.polling()
